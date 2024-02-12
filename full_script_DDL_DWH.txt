@@ -1,0 +1,521 @@
+--SELECT * FROM core.fact_product
+drop table if exists staging.fact_product;
+CREATE TABLE staging.fact_product (
+  article int NOT NULL,
+  seller_id int NOT NULL,
+  date_id date NOT NULL,
+  sales int NOT NULL,
+  price int NOT NULL,
+  rating numeric(2,1) NOT NULL,
+  reviews int NOT NULL,
+  old_price int NOT NULL,
+  title varchar(255) NOT NULL,
+  pictures smallint NOT NULL,
+  cpm smallint NOT NULL,
+  units_in_stocks int NOT NULL,
+  avg_units numeric(10,1) NOT NULL,
+  revenue int GENERATED ALWAYS AS (price * sales) STORED,
+  PRIMARY KEY (article, seller_id, date_id)
+);
+
+drop table if exists staging.fact_region;
+CREATE TABLE staging.fact_region (
+  article int NOT NULL,
+  seller_id int NOT NULL,
+  date_id date NOT NULL,
+  region_id varchar(50) NOT NULL,
+  query_id varchar(255) NOT NULL,
+  position smallint NOT NULL,
+  avg_delivery numeric(8,1) NOT NULL,
+  market_share numeric(8,5) NOT NULL,
+  PRIMARY KEY (article, seller_id, date_id, region_id, query_id)
+);
+
+drop table if exists staging.fact_stock;
+CREATE TABLE staging.fact_stock (
+  article int NOT NULL,
+  seller_id int NOT NULL,
+  date_id date NOT NULL,
+  stock_id int NOT NULL,
+  model_name varchar(20) NOT NULL,
+  quantity int NOT NULL,
+  delivery_time smallint NOT NULL
+);
+
+drop table if exists staging.product;
+CREATE TABLE staging.product (
+  article int NOT NULL,
+  seller_id int NOT NULL,
+  brand_id int NOT NULL,
+  brand_name varchar(50),
+  seller_name varchar(50),
+  url varchar(100) NOT NULL
+);
+
+drop table if exists staging.stock;
+CREATE TABLE staging.stock (
+  stock_id int NOT NULL,
+  name varchar(100),
+  region varchar(50)
+);
+
+drop table if exists staging.date;
+CREATE TABLE staging.date (
+  date date NOT NULL,
+  month_number smallint NOT NULL,
+  day_of_week varchar(9) NOT NULL,
+  month_name varchar(9) NOT NULL,
+  num_week smallint NOT NULL,
+  quarter smallint NOT NULL
+);
+
+drop table if exists staging.region;
+CREATE TABLE staging.region (
+  name varchar(50) NOT NULL
+);
+
+drop table if exists staging.query;
+CREATE TABLE staging.query (
+  url varchar(255) NOT NULL,
+  name varchar(255) NOT NULL,
+  category boolean NOT NULL
+);
+
+drop table if exists core.fact_product;
+CREATE TABLE core.fact_product (
+  article int,
+  seller_id int,
+  date_id int,
+  sales int NOT NULL,
+  price int NOT NULL,
+  rating numeric(2,1) NOT NULL,
+  reviews int NOT NULL,
+  old_price int NOT NULL,
+  title varchar(255) NOT NULL,
+  pictures smallint NOT NULL,
+  cpm smallint NOT NULL,
+  units_in_stocks int NOT NULL,
+  avg_units numeric(10,1) NOT NULL,
+  revenue int GENERATED ALWAYS AS (price * sales) STORED,
+  PRIMARY KEY (article, seller_id, date_id)
+);
+
+drop table if exists core.fact_region;
+CREATE TABLE core.fact_region (
+  article int,
+  seller_id int,
+  date_id int,
+  region_id int,
+  query_id int,
+  position smallint NOT NULL,
+  avg_delivery numeric(8,1) NOT NULL,
+  market_share numeric(8,5) NOT NULL,
+  PRIMARY KEY (article, seller_id, date_id, region_id, query_id)
+);
+
+drop table if exists core.fact_stock;
+CREATE TABLE core.fact_stock (
+  article int,
+  seller_id int,
+  date_id int,
+  stock_id int,
+  model_name varchar(20),
+  quantity int NOT NULL,
+  delivery_time smallint NOT NULL,
+  PRIMARY KEY (article, seller_id, date_id, stock_id, model_name)
+);
+
+drop table if exists core.product;
+CREATE TABLE core.product (
+  article int,
+  seller_id int,
+  brand_id int,
+  brand_name varchar(50),
+  seller_name varchar(50),
+  url varchar(100),
+  PRIMARY KEY (article, seller_id)
+);
+
+drop table if exists core.stock;
+CREATE TABLE core.stock (
+  stock_id int PRIMARY KEY,
+  name varchar(100),
+  region varchar(50)
+);
+
+drop table if exists core.date;
+CREATE TABLE core.date (
+  date_id int PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  date date NOT NULL,
+  month_number smallint NOT NULL,
+  day_of_week varchar(9) NOT NULL,
+  month_name varchar(9) NOT NULL,
+  num_week smallint NOT NULL,
+  quarter smallint NOT NULL
+);
+
+drop table if exists core.region;
+CREATE TABLE core.region (
+  region_id int PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  name varchar(50) UNIQUE
+);
+
+drop table if exists core.query;
+CREATE TABLE core.query (
+  query_id int PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  url varchar(255) NOT NULL UNIQUE,
+  name varchar(255) NOT NULL,
+  category boolean NOT NULL
+);
+
+ALTER TABLE core.fact_product ADD FOREIGN KEY (article, seller_id) REFERENCES core.product (article, seller_id);
+
+--ALTER TABLE core.fact_product ADD FOREIGN KEY (seller_id) REFERENCES core.product (seller_id);
+
+ALTER TABLE core.fact_product ADD FOREIGN KEY (date_id) REFERENCES core.date (date_id);
+
+ALTER TABLE core.fact_region ADD FOREIGN KEY (article, seller_id) REFERENCES core.product (article, seller_id);
+
+--ALTER TABLE core.fact_region ADD FOREIGN KEY (seller_id) REFERENCES core.product (seller_id);
+
+ALTER TABLE core.fact_region ADD FOREIGN KEY (date_id) REFERENCES core.date (date_id);
+
+ALTER TABLE core.fact_region ADD FOREIGN KEY (region_id) REFERENCES core.region (region_id);
+
+ALTER TABLE core.fact_region ADD FOREIGN KEY (query_id) REFERENCES core.query (query_id);
+
+ALTER TABLE core.fact_stock ADD FOREIGN KEY (article, seller_id) REFERENCES core.product (article, seller_id);
+
+--ALTER TABLE core.fact_stock ADD FOREIGN KEY (seller_id) REFERENCES core.product (seller_id);
+
+ALTER TABLE core.fact_stock ADD FOREIGN KEY (date_id) REFERENCES core.date (date_id);
+
+ALTER TABLE core.fact_stock ADD FOREIGN KEY (stock_id) REFERENCES core.stock (stock_id);
+
+
+create or replace procedure core.load_core_date()
+as $$
+	begin
+		INSERT INTO core.date(
+			date, 
+			month_number, 
+			day_of_week, 
+			month_name, 
+			num_week, 
+			quarter
+		)
+		SELECT
+			s.date, 
+			s.month_number, 
+			s.day_of_week, 
+			s.month_name, 
+			s.num_week, 
+			s.quarter
+		FROM staging.date as s
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM core.date as d
+			WHERE d.date = s.date
+		);
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_product()
+as $$
+	begin
+		INSERT INTO core.product(
+			article, 
+			seller_id, 
+			brand_id, 
+			brand_name, 
+			seller_name, 
+			url
+		)
+		SELECT
+			s.article, 
+			s.seller_id, 
+			s.brand_id, 
+			s.brand_name, 
+			s.seller_name, 
+			s.url
+		FROM staging.product as s
+		ON CONFLICT (article, seller_id) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_region()
+as $$
+	begin
+		INSERT INTO core.region(
+			name
+		)
+		SELECT
+			s.name
+		FROM staging.region as s
+		ON CONFLICT (name) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_query()
+as $$
+	begin
+		INSERT INTO core.query(
+			url,
+			name,
+			category
+		)
+		SELECT
+			s.url,
+			s.name,
+			s.category
+		FROM staging.query as s
+		ON CONFLICT (url) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_stock()
+as $$
+	begin
+		INSERT INTO core.stock(
+			stock_id,
+			name,
+			region
+		)
+		SELECT
+			s.stock_id,
+			s.name,
+			s.region
+		FROM staging.stock as s
+		ON CONFLICT (stock_id) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_fact_product()
+as $$
+	begin
+		INSERT INTO core.fact_product(
+			article, 
+			seller_id, 
+			date_id, 
+			sales, 
+			price, 
+			rating, 
+			reviews, 
+			old_price, 
+			title, 
+			pictures, 
+			cpm, 
+			units_in_stocks, 
+			avg_units)
+		SELECT
+			article, 
+			seller_id, 
+			(SELECT d.date_id FROM core.date as d WHERE d.date = s.date_id),
+			sales, 
+			price, 
+			rating, 
+			reviews, 
+			old_price, 
+			title, 
+			pictures, 
+			cpm, 
+			units_in_stocks, 
+			avg_units
+		FROM staging.fact_product as s
+		ON CONFLICT (article, seller_id, date_id) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_fact_region()
+as $$
+	begin
+		INSERT INTO core.fact_region(
+			article, 
+			seller_id, 
+			date_id, 
+			region_id, 
+			query_id, 
+			position, 
+			avg_delivery, 
+			market_share
+		)
+		SELECT
+			article, 
+			seller_id, 
+			(SELECT d.date_id FROM core.date as d WHERE d.date = s.date_id),
+			(SELECT r.region_id FROM core.region as r WHERE r.name = s.region_id),
+			(SELECT q.query_id FROM core.query as q WHERE q.url = s.query_id),
+			position, 
+			avg_delivery, 
+			market_share
+		FROM staging.fact_region as s
+		ON CONFLICT (article, seller_id, date_id, region_id, query_id) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_fact_stock()
+as $$
+	begin
+		INSERT INTO core.fact_stock(
+			article, 
+			seller_id, 
+			date_id, 
+			stock_id, 
+			model_name, 
+			quantity, 
+			delivery_time
+		)
+		SELECT
+			article,
+			seller_id,
+			(SELECT d.date_id FROM core.date as d WHERE d.date = s.date_id),
+			stock_id, 
+			model_name, 
+			quantity, 
+			delivery_time
+		FROM staging.fact_stock as s
+		ON CONFLICT (article, seller_id, date_id, stock_id, model_name) DO NOTHING;
+	end;
+$$ language plpgsql;
+
+create or replace procedure core.load_core_all()
+as $$
+	begin
+		call core.load_core_date();
+		call core.load_core_product();
+		call core.load_core_query();
+		call core.load_core_region();
+		call core.load_core_stock();
+		call core.load_core_fact_product();
+		call core.load_core_fact_region();
+		call core.load_core_fact_stock();
+	end;
+$$ language plpgsql;
+CREATE TRIGGER after_insert_trigger
+AFTER INSERT ON staging.fact_region
+FOR EACH STATEMENT
+EXECUTE FUNCTION staging.trigger_load_core();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_date()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.date;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_date
+AFTER INSERT ON core.date
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_date();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_product()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.product;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_product
+AFTER INSERT ON core.product
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_product();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_query()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.query;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_query
+AFTER INSERT ON core.query
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_query();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_region()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.region;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_region
+AFTER INSERT ON core.region
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_region();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.stock;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_stock
+AFTER INSERT ON core.stock
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_stock();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_fact_product()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.fact_product;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_fact_product
+AFTER INSERT ON core.fact_product
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_fact_product();
+
+CREATE OR REPLACE FUNCTION core.trigger_del_fact_region()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.fact_region;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_fact_region
+AFTER INSERT ON core.fact_region
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_fact_region();
+
+
+CREATE OR REPLACE FUNCTION core.trigger_del_fact_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Вызов процедуры после вставки новых значений
+    delete from staging.fact_stock;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER after_insert_trigger_fact_stock
+AFTER INSERT ON core.fact_stock
+FOR EACH STATEMENT
+EXECUTE FUNCTION core.trigger_del_fact_stock();
+
+
+
